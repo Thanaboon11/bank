@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบบันทึกรายรับ-รายจ่าย Pro 💰</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root { 
+            --primary: #4f46e5; 
+            --success: #10b981; 
+            --danger: #f43f5e; 
+            --bg: #f8fafc; 
+            --dark: #1e293b; 
+        }
+        body { font-family: 'Sarabun', sans-serif; background: var(--bg); padding: 20px; color: var(--dark); margin: 0; }
+        .container { max-width: 1100px; margin: auto; }
+        
+        /* การ์ดและดีไซน์ */
+        .card { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 25px; border: 1px solid #edf2f7; }
+        .input-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 10px; }
+        
+        input, select { 
+            width: 100%; padding: 12px; border-radius: 12px; border: 1.5px solid #e2e8f0; 
+            font-size: 16px; outline: none; box-sizing: border-box; transition: 0.2s;
+        }
+        input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
+
+        .btn-save { 
+            grid-column: 1 / -1; background: linear-gradient(135deg, var(--primary), #4338ca); 
+            color: white; padding: 16px; border-radius: 15px; border: none; 
+            font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 10px;
+        }
+        .btn-save:hover { opacity: 0.9; transform: translateY(-1px); }
+
+        /* การ์ดบัญชีแบบ Gradient */
+        .acc-grid { display: flex; gap: 15px; overflow-x: auto; padding-bottom: 15px; }
+        .acc-card { 
+            min-width: 200px; background: linear-gradient(135deg, #1e293b, #334155); 
+            color: white; padding: 20px; border-radius: 20px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+        }
+        .acc-card h4 { margin: 0 0 8px 0; font-weight: 300; opacity: 0.8; }
+        .acc-card h2 { margin: 0; font-size: 24px; }
+
+        /* ตารางและ Tabs */
+        .tab-btn { padding: 10px 20px; border-radius: 10px; border: none; background: #e2e8f0; cursor: pointer; font-weight: 600; }
+        .tab-btn.active { background: var(--primary); color: white; }
+
+        table { width: 100%; border-collapse: separate; border-spacing: 0 8px; min-width: 800px; }
+        td, th { padding: 15px; text-align: left; }
+        td { background: white; border-top: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; }
+        td:first-child { border-radius: 15px 0 0 15px; border-left: 1px solid #f1f5f9; }
+        td:last-child { border-radius: 0 15px 15px 0; border-right: 1px solid #f1f5f9; }
+        
+        .txt-รายรับ { color: var(--success); font-weight: bold; }
+        .txt-รายจ่าย { color: var(--danger); font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2 style="text-align: center; color: var(--primary); margin: 30px 0;">💰 My Finance Dashboard</h2>
+
+    <div class="card">
+        <h3 style="margin-top:0">🏦 บัญชีธนาคาร</h3>
+        <div style="display:flex; gap:10px; margin-bottom:20px">
+            <input type="text" id="newAcc" placeholder="ชื่อบัญชีใหม่ (เช่น ออมสิน)">
+            <button onclick="addAccount()" style="padding:0 25px; background:var(--dark); color:white; border-radius:12px; border:none; cursor:pointer; font-weight:bold">เพิ่ม</button>
+        </div>
+        <div id="accCards" class="acc-grid"></div>
+    </div>
+
+    <div class="card">
+        <h3>📝 บันทึกรายการใหม่</h3>
+        <div class="input-form">
+            <div><label>วันที่</label><input type="date" id="date"></div>
+            <div><label>บัญชี</label><select id="accSelect"></select></div>
+            <div><label>ประเภท</label><select id="type"><option value="รายรับ">รายรับ (+)</option><option value="รายจ่าย" selected>รายจ่าย (-)</option></select></div>
+            <div><label>รายการ</label><input type="text" id="desc" placeholder="เช่น ค่ากาแฟ"></div>
+            <div><label>จำนวนเงิน</label><input type="number" id="amt" placeholder="0.00"></div>
+            <button class="btn-save" onclick="saveData()">บันทึกข้อมูล ✨</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap:15px;">
+            <div id="bankTabs" style="display:flex; gap:8px; overflow-x:auto;"></div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <input type="month" id="filterMonth" onchange="updateUI()" style="width: auto;">
+                <button onclick="exportExcelFull()" style="background:var(--success); color:white; padding:12px 20px; border-radius:12px; border:none; cursor:pointer; font-weight:bold">📥 ส่งออก Excel ปีนี้</button>
+            </div>
+        </div>
+
+        <div style="overflow-x:auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>วันที่</th>
+                        <th>ประเภท</th>
+                        <th>รายการ</th>
+                        <th>จำนวนเงิน</th>
+                        <th>คงเหลือ</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="dataTable"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ใช้ Key เดิมเพื่อให้ดึงข้อมูลเก่ามาได้ แต่เพิ่มความเสถียร
+    let accounts = JSON.parse(localStorage.getItem('FIN_V6_ACCS')) || ['เงินสด 💵', 'กสิกร 🏦'];
+    let logs = JSON.parse(localStorage.getItem('FIN_V6_LOGS')) || [];
+    let currentTab = 'ทั้งหมด';
+
+    document.getElementById('date').valueAsDate = new Date();
+    document.getElementById('filterMonth').value = new Date().toISOString().slice(0, 7);
+
+    function addAccount() {
+        let name = document.getElementById('newAcc').value.trim();
+        if(name && !accounts.includes(name)) {
+            accounts.push(name);
+            document.getElementById('newAcc').value = '';
+            saveAndUI();
+        }
+    }
+
+    function saveData() {
+        let amt = parseFloat(document.getElementById('amt').value) || 0;
+        let date = document.getElementById('date').value;
+        let acc = document.getElementById('accSelect').value;
+        let type = document.getElementById('type').value;
+        let desc = document.getElementById('desc').value || "ทั่วไป";
+
+        if(amt <= 0) return alert("กรุณาระบุจำนวนเงิน");
+        if(!date) return alert("กรุณาระบุวันที่");
+
+        logs.push({ id: Date.now(), date, acc, type, desc, amt });
+        document.getElementById('amt').value = '';
+        document.getElementById('desc').value = '';
+        saveAndUI();
+    }
+
+    function saveAndUI() {
+        localStorage.setItem('FIN_V6_ACCS', JSON.stringify(accounts));
+        localStorage.setItem('FIN_V6_LOGS', JSON.stringify(logs));
+        updateUI();
+    }
+
+    function updateUI() {
+        // อัปเดต Dropdown เลือกบัญชี
+        document.getElementById('accSelect').innerHTML = accounts.map(a => `<option value="${a}">${a}</option>`).join('');
+        
+        // อัปเดต Tabs กรองบัญชี
+        let tabHtml = `<button class="tab-btn ${currentTab==='ทั้งหมด'?'active':''}" onclick="currentTab='ทั้งหมด';updateUI()">ทั้งหมด</button>`;
+        accounts.forEach(a => { tabHtml += `<button class="tab-btn ${currentTab===a?'active':''}" onclick="currentTab='${a}';updateUI()">${a}</button>`; });
+        document.getElementById('bankTabs').innerHTML = tabHtml;
+
+        // ประมวลผลเงินคงเหลือ
+        logs.sort((a,b) => new Date(a.date) - new Date(b.date));
+        let bals = {}; accounts.forEach(a => bals[a] = 0);
+        let processed = logs.map(l => {
+            l.type === 'รายรับ' ? (bals[l.acc] = (bals[l.acc]||0) + l.amt) : (bals[l.acc] = (bals[l.acc]||0) - l.amt);
+            return { ...l, runningBal: bals[l.acc] };
+        });
+
+        // แสดงการ์ดบัญชี
+        document.getElementById('accCards').innerHTML = accounts.map(a => `
+            <div class="acc-card">
+                <h4>${a}</h4>
+                <h2>${(bals[a] || 0).toLocaleString()} <small style="font-size:14px">฿</small></h2>
+            </div>
+        `).join('');
+
+        // แสดงข้อมูลในตารางตามเดือนที่เลือก
+        const fMonth = document.getElementById('filterMonth').value;
+        const tbody = document.getElementById('dataTable');
+        tbody.innerHTML = '';
+        let filtered = processed.filter(l => l.date.startsWith(fMonth));
+        if(currentTab !== 'ทั้งหมด') filtered = filtered.filter(l => l.acc === currentTab);
+
+        [...filtered].reverse().forEach(l => {
+            tbody.innerHTML += `
+                <tr>
+                    <td>${l.date}</td>
+                    <td class="txt-${l.type}">${l.type}</td>
+                    <td>${l.desc} <br><small style="color:gray">${l.acc}</small></td>
+                    <td class="txt-${l.type}">${(l.type==='รายรับ'?'+':'-') + l.amt.toLocaleString()}</td>
+                    <td style="font-weight:600">${l.runningBal.toLocaleString()}</td>
+                    <td><button onclick="deleteEntry(${l.id})" style="border:none; background:none; cursor:pointer; font-size:18px">🗑️</button></td>
+                </tr>`;
+        });
+    }
+
+    function deleteEntry(id) { if(confirm('ลบรายการนี้?')) { logs = logs.filter(l => l.id !== id); saveAndUI(); } }
+
+    // --- ส่วนส่งออก Excel ที่เสถียรที่สุด ---
+    function exportExcelFull() {
+        const selM = document.getElementById('filterMonth').value;
+        const selY = selM.split('-')[0];
+        const wb = XLSX.utils.book_new();
+
+        // กรองข้อมูลเฉพาะปีที่เลือก
+        const yearLogs = logs.filter(l => l.date.startsWith(selY));
+        if(yearLogs.length === 0) return alert("ไม่มีข้อมูลในปี " + selY);
+
+        // 1. หน้าสรุปภาพรวมปี (Dashboard Sheet)
+        const summaryData = [["สรุปยอดรวมประจำปี " + selY], ["เดือน", "รายรับ", "รายจ่าย", "คงเหลือ"]];
+        const monthKeys = [...new Set(yearLogs.map(l => l.date.slice(0, 7)))].sort();
+        monthKeys.forEach(m => {
+            const mLogs = yearLogs.filter(l => l.date.startsWith(m));
+            const inc = mLogs.filter(x=>x.type==='รายรับ').reduce((s,x)=>s+x.amt,0);
+            const exp = mLogs.filter(x=>x.type==='รายจ่าย').reduce((s,x)=>s+x.amt,0);
+            summaryData.push([m, inc, exp, inc-exp]);
+        });
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryData), "สรุปภาพรวมปี " + selY);
+
+        // 2. แยก Sheet บัญชี และแยก Column เดือน
+        accounts.forEach(acc => {
+            const accLogs = yearLogs.filter(l => l.acc === acc);
+            if(accLogs.length === 0) return;
+
+            const ws = XLSX.utils.aoa_to_sheet([]);
+            let colOffset = 0;
+            let running = 0;
+            const mGroup = {};
+            accLogs.forEach(l => {
+                const m = l.date.slice(0, 7);
+                if(!mGroup[m]) mGroup[m] = [];
+                mGroup[m].push(l);
+            });
+
+            Object.keys(mGroup).sort().forEach(m => {
+                const header = [
+                    ["เดือน: " + m, "", "", "", ""],
+                    ["วันที่", "ประเภท", "รายการ", "จำนวนเงิน", "คงเหลือสะสม"]
+                ];
+                XLSX.utils.sheet_add_aoa(ws, header, { origin: { r: 0, c: colOffset } });
+                
+                const rows = mGroup[m].map(l => {
+                    l.type === 'รายรับ' ? running += l.amt : running -= l.amt;
+                    return [l.date, l.type, l.desc, l.amt, running];
+                });
+                XLSX.utils.sheet_add_aoa(ws, rows, { origin: { r: 2, c: colOffset } });
+                colOffset += 6; // เว้น 1 คอลัมน์
+            });
+            ws['!cols'] = Array(colOffset).fill({wch: 15});
+            XLSX.utils.book_append_sheet(wb, ws, acc.substring(0,30));
+        });
+
+        XLSX.writeFile(wb, `Finance_Report_${selY}.xlsx`);
+    }
+
+    updateUI();
+</script>
+</body>
+</html>
